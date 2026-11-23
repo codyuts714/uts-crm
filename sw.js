@@ -1,5 +1,5 @@
 /* UTS Client CRM service worker */
-const CACHE_VERSION = "uts-crm-v2";
+const CACHE_VERSION = "uts-crm-v3";
 const ASSETS = [
   './',
   './index.html',
