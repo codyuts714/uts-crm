@@ -448,6 +448,10 @@ const STAGES = ["Scheduled","Pre-Pro","Shoot","Editing","Review","Delivered"];
 const VSTAGES = ["Ready to edit","In edit","Ready for review","Delivered"];
 const projGrabOpen = new Set();
 const projExpand = new Set();
+const reviewEditing = new Set();
+function editReviewLink(vid){reviewEditing.add(vid);renderReviews();}
+const delivEditing = new Set();
+function editDelivLink(vid){delivEditing.add(vid);renderDeliver();}
 function allDelivs(){const out=[];state.projects.forEach(p=>(p.videos||[]).forEach(v=>out.push({p,v})));return out;}
 function findDeliv(vid){for(const p of state.projects){const v=(p.videos||[]).find(x=>x.id===vid);if(v)return{p,v};}return null;}
 function normDeliv(){state.projects.forEach(p=>(p.videos||[]).forEach(v=>{if(v.frame===undefined)v.frame='';if(v.dropbox===undefined)v.dropbox='';if(v.post===undefined)v.post='ready';if(v.archived===undefined)v.archived=false;}));}
@@ -781,7 +785,7 @@ function setVideoStage(pid,vid,stage){const p=state.projects.find(p=>p.id===pid)
 function rmVideo(pid,vid){const p=state.projects.find(p=>p.id===pid);p.videos=(p.videos||[]).filter(x=>x.id!==vid);save('projects');renderProjects();}
 function toggleGrab(pid){projGrabOpen.has(pid)?projGrabOpen.delete(pid):projGrabOpen.add(pid);renderProjects();}
 function setDelivStage(vid,stage){const r=findDeliv(vid);if(!r)return;r.v.stage=+stage;if(r.v.stage!==2)r.v.sentAt=null;save('projects');renderAll();}
-function saveDelivFrame(vid,pre){const r=findDeliv(vid);if(!r)return;const e=document.getElementById(pre+'-'+vid);r.v.frame=e?e.value.trim():r.v.frame;save('projects');toast('Link saved');renderAll();}
+function saveDelivFrame(vid,pre){const r=findDeliv(vid);if(!r)return;const e=document.getElementById(pre+'-'+vid);r.v.frame=e?e.value.trim():r.v.frame;reviewEditing.delete(vid);save('projects');toast('Link saved');renderAll();}
 function openProject(id){
   const p=id?state.projects.find(x=>x.id===id):null;
   const today=new Date().toISOString().slice(0,10);
@@ -824,8 +828,9 @@ function renderReviews(){
     return `<div class="item">
       <div class="ih"><div class="sp"><div class="title">${v.kind==='photos'?'📸':'🎬'} ${esc(v.name)}</div>
         <div class="meta"><span style="color:var(--muted)">${esc(p.title)}</span>${badge}${v.sentAt?`<span>sent ${fmtDate(new Date(v.sentAt).toISOString().slice(0,10))}</span>`:''}</div></div></div>
-      <div class="linkrow"><input id="rf-${v.id}" value="${esc(v.frame||'')}" placeholder="Frame.io review link…"><button class="btn sm" onclick="saveDelivFrame('${v.id}','rf')">Save</button></div>
-      ${v.frame?`<div class="chips"><span class="chip link" onclick="window.open('${esc(v.frame)}','_blank')">🎞 Open in Frame.io</span></div>`:''}
+      ${(!v.frame||reviewEditing.has(v.id))
+        ? `<div class="linkrow"><input id="rf-${v.id}" value="${esc(v.frame||'')}" placeholder="Paste the review link…"><button class="btn primary sm" onclick="saveDelivFrame('${v.id}','rf')">Save</button></div>`
+        : `<div class="linkrow"><button class="btn primary" style="flex:1" onclick="window.open('${esc(v.frame)}','_blank')">🔗 Open review link</button><button class="btn sm" onclick="editReviewLink('${v.id}')">✎ Edit link</button></div>`}
       <div class="chips" style="margin-top:12px">
         <button class="btn primary sm" onclick="sendReview('${v.id}')">✉️ Send for Review</button>
         <button class="btn sm danger" onclick="reviewRevisions('${v.id}')">↩ Needs revisions</button>
@@ -851,7 +856,7 @@ function sendReview(vid){
   }
 }
 function reviewRevisions(vid){const r=findDeliv(vid);if(!r)return;r.v.stage=1;r.v.sentAt=null;save('projects');renderAll();toast('Sent back to editing');}
-function reviewApprove(vid){const r=findDeliv(vid);if(!r)return;r.v.stage=3;save('projects');go('deliver');renderAll();toast('Delivered - add the Dropbox link','good');}
+function reviewApprove(vid){const r=findDeliv(vid);if(!r)return;r.v.stage=3;if(!r.v.dropbox&&r.v.frame)r.v.dropbox=r.v.frame;save('projects');go('deliver');renderAll();toast('Delivered','good');}
 
 /* ----- DELIVERABLES ----- */
 function renderDeliver(){
@@ -865,8 +870,9 @@ function renderDeliver(){
     return `<div class="item">
       <div class="ih"><div class="sp"><div class="title">${v.kind==='photos'?'📸':'🎬'} ${esc(v.name)}</div>
         <div class="meta"><span style="color:var(--muted)">${esc(p.title)}</span>${badge}${v.postedAt?`<span>posted ${fmtDate(new Date(v.postedAt).toISOString().slice(0,10))}</span>`:''}</div></div></div>
-      <div class="linkrow"><input id="dbf-${v.id}" value="${esc(v.dropbox||'')}" placeholder="Dropbox link to the final file…"><button class="btn sm" onclick="saveDropbox('${v.id}')">Save</button></div>
-      ${v.dropbox?`<div class="chips"><span class="chip link" onclick="window.open('${esc(v.dropbox)}','_blank')">📂 Open Dropbox</span></div>`:''}
+      ${(!v.dropbox||delivEditing.has(v.id))
+        ? `<div class="linkrow"><input id="dbf-${v.id}" value="${esc(v.dropbox||'')}" placeholder="Paste the file / download link…"><button class="btn primary sm" onclick="saveDropbox('${v.id}')">Save</button></div>`
+        : `<div class="linkrow"><button class="btn primary" style="flex:1" onclick="window.open('${esc(v.dropbox)}','_blank')">📂 Retrieve your files</button><button class="btn sm" onclick="editDelivLink('${v.id}')">✎ Edit link</button></div>`}
       <div class="chips" style="margin-top:12px">
         ${!showArchive?(v.post!=='posted'
           ? `<button class="btn primary sm" onclick="flipPosted('${v.id}')">✅ Mark Posted</button>`
@@ -875,7 +881,7 @@ function renderDeliver(){
       </div>
     </div>`;}).join('');
 }
-function saveDropbox(vid){const r=findDeliv(vid);if(!r)return;const e=document.getElementById('dbf-'+vid);r.v.dropbox=e?e.value.trim():r.v.dropbox;save('projects');toast('Link saved');renderDeliver();}
+function saveDropbox(vid){const r=findDeliv(vid);if(!r)return;const e=document.getElementById('dbf-'+vid);r.v.dropbox=e?e.value.trim():r.v.dropbox;delivEditing.delete(vid);save('projects');toast('Link saved');renderDeliver();}
 function flipPosted(vid){const r=findDeliv(vid);if(!r)return;r.v.post='posted';r.v.postedAt=Date.now();save('projects');renderAll();toast('Marked posted','good');}
 function flipReady(vid){const r=findDeliv(vid);if(!r)return;r.v.post='ready';r.v.postedAt=null;save('projects');renderDeliver();}
 function archiveDeliv(vid){const r=findDeliv(vid);if(!r)return;r.v.archived=true;save('projects');renderAll();toast('Archived','good');}
