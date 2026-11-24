@@ -495,7 +495,7 @@ function applyTheme(color){color=color||'#ec4899';const r=document.documentEleme
 function clientMeta(id){return MULTI.roster.find(c=>c.id===id);}
 function activeColor(){const m=clientMeta(activeClient);return m?m.color:'#ec4899';}
 function renderClientBar(){const bar=document.getElementById('clientBar');if(!bar)return;
-  if(!DEMO||role!=='owner'){bar.classList.add('hid');return;}
+  if(role!=='owner'){bar.classList.add('hid');return;}
   bar.classList.remove('hid');bar.style.display='flex';
   let h=`<button class="ctab ${activeClient==='dashboard'?'active':''}" onclick="setActiveClient('dashboard')">🧠 Studio Brain</button>`;
   MULTI.roster.forEach(c=>{h+=`<button class="ctab ${activeClient===c.id?'active':''}" onclick="setActiveClient('${c.id}')"><span class="cdot" style="background:${c.color}"></span>${esc(c.name)}</button>`;});
