@@ -452,6 +452,8 @@ const reviewEditing = new Set();
 function editReviewLink(vid){reviewEditing.add(vid);renderReviews();}
 const delivEditing = new Set();
 function editDelivLink(vid){delivEditing.add(vid);renderDeliver();}
+const ideaExpand = new Set();
+function toggleIdea(id){ideaExpand.has(id)?ideaExpand.delete(id):ideaExpand.add(id);renderIdeas();}
 function allDelivs(){const out=[];state.projects.forEach(p=>(p.videos||[]).forEach(v=>out.push({p,v})));return out;}
 function findDeliv(vid){for(const p of state.projects){const v=(p.videos||[]).find(x=>x.id===vid);if(v)return{p,v};}return null;}
 function normDeliv(){state.projects.forEach(p=>(p.videos||[]).forEach(v=>{if(v.frame===undefined)v.frame='';if(v.dropbox===undefined)v.dropbox='';if(v.post===undefined)v.post='ready';if(v.archived===undefined)v.archived=false;}));}
@@ -618,24 +620,28 @@ function renderIdeas(){
   const el=document.getElementById('ideaList');
   const items=state.ideas.filter(i=>!i.converted);
   if(!items.length){el.innerHTML=emptyBox('💡','No ideas yet. Capture the first one.');return;}
-  el.innerHTML=items.map(i=>`
-    <div class="item">
-      <div class="ih">
+  el.innerHTML=items.map(i=>{
+    const open=ideaExpand.has(i.id);
+    const nL=(i.links&&i.links.length)||0, nS=(i.supplies&&i.supplies.length)||0;
+    return `<div class="item">
+      <div class="ih" style="cursor:pointer" onclick="toggleIdea('${i.id}')">
         <div class="sp">
-          <div class="title">${esc(i.title)}</div>
-          ${i.notes?`<div class="notes">${esc(i.notes)}</div>`:''}
-          ${(i.links&&i.links.length)?`<div class="chips">${i.links.map((l,x)=>`<span class="chip link" onclick="window.open('${esc(l)}','_blank')">🔗 ${esc(linkLabel(l))}<span class="x" onclick="event.stopPropagation();rmLink('${i.id}',${x})">×</span></span>`).join('')}</div>`:''}
-          ${(i.supplies&&i.supplies.length)?`<div class="sup-head">🎒 Supplies needed</div><div class="supplies-list">${i.supplies.map((s,x)=>`<div class="sup-row"><span class="sup-dot">•</span><span class="sup-name">${esc(s.name||s)}</span><span class="sup-x" onclick="rmSupply('${i.id}',${x})">×</span></div>`).join('')}</div>`:''}
-          <div class="linkrow"><input id="lk-${i.id}" placeholder="Add inspo link…" onkeydown="if(event.key==='Enter')addLink('${i.id}')"><button class="btn sm" onclick="addLink('${i.id}')">+ Link</button></div>
-          <div class="linkrow"><input id="sp-${i.id}" placeholder="Add a prop, outfit or gear item…" onkeydown="if(event.key==='Enter')addSupply('${i.id}')"><button class="btn sm" onclick="addSupply('${i.id}')">+ Supply</button></div>
+          <div class="title">${esc(i.title)} <span style="color:var(--faint);font-weight:800">${open?'▲':'▼'}</span></div>
+          ${(!open&&(nL||nS))?`<div class="meta">${nL?`<span>🔗 ${nL} link${nL===1?'':'s'}</span>`:''}${nS?`<span>🎒 ${nS} suppl${nS===1?'y':'ies'}</span>`:''}</div>`:''}
         </div>
       </div>
+      ${open?`
+      ${i.notes?`<div class="notes">${esc(i.notes)}</div>`:''}
+      ${(i.links&&i.links.length)?`<div class="chips">${i.links.map((l,x)=>`<span class="chip link" onclick="window.open('${esc(l)}','_blank')">🔗 ${esc(linkLabel(l))}<span class="x" onclick="event.stopPropagation();rmLink('${i.id}',${x})">×</span></span>`).join('')}</div>`:''}
+      ${(i.supplies&&i.supplies.length)?`<div class="sup-head">🎒 Supplies needed</div><div class="supplies-list">${i.supplies.map((s,x)=>`<div class="sup-row"><span class="sup-dot">•</span><span class="sup-name">${esc(s.name||s)}</span><span class="sup-x" onclick="rmSupply('${i.id}',${x})">×</span></div>`).join('')}</div>`:''}
+      <div class="linkrow"><input id="lk-${i.id}" placeholder="Add inspo link…" onkeydown="if(event.key==='Enter')addLink('${i.id}')"><button class="btn sm" onclick="addLink('${i.id}')">+ Link</button></div>
+      <div class="linkrow"><input id="sp-${i.id}" placeholder="Add a prop, outfit or gear item…" onkeydown="if(event.key==='Enter')addSupply('${i.id}')"><button class="btn sm" onclick="addSupply('${i.id}')">+ Supply</button></div>
       <div class="chips" style="margin-top:12px">
         <button class="btn primary sm" onclick="convertIdea('${i.id}')">🎬 Convert to Shoot</button>
         <button class="btn sm" onclick="openIdea('${i.id}')">Edit</button>
         <button class="btn sm danger" onclick="del('ideas','${i.id}')">Delete</button>
-      </div>
-    </div>`).join('');
+      </div>`:''}
+    </div>`;}).join('');
 }
 function linkLabel(l){try{return new URL(l).hostname.replace('www.','');}catch(e){return l.slice(0,24);}}
 function openIdea(id){
