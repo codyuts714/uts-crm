@@ -72,6 +72,23 @@ a:hover{text-decoration:underline}
 .tab .n{font-size:11px;background:var(--champ);color:var(--pink-deep);border-radius:999px;padding:1px 7px;font-weight:800;min-width:18px;text-align:center}
 .tab.active{background:linear-gradient(135deg,var(--pink),var(--rose));color:#fff;box-shadow:0 6px 16px -6px rgba(236,72,153,.6)}
 .tab.active .n{background:rgba(255,255,255,.3);color:#fff}
+.clientbar{display:flex;gap:7px;overflow-x:auto;padding:10px max(14px,env(safe-area-inset-left));background:rgba(255,255,255,.55);border-bottom:1px solid var(--line);scrollbar-width:none}
+.clientbar::-webkit-scrollbar{display:none}
+.ctab{white-space:nowrap;padding:7px 14px;border-radius:999px;font-weight:700;font-size:13px;color:var(--muted);background:#fff;border:1px solid var(--line2);display:flex;align-items:center;gap:7px;cursor:pointer}
+.ctab.active{background:linear-gradient(135deg,var(--pink),var(--rose));color:#fff;border-color:transparent}
+.ctab.add{color:var(--pink-deep);border-style:dashed;background:transparent}
+.cdot{width:9px;height:9px;border-radius:50%;flex:0 0 auto;display:inline-block}
+.dbar{height:6px;border-radius:4px;background:var(--line);overflow:hidden;margin-top:8px}
+.dbar>span{display:block;height:100%;background:linear-gradient(90deg,var(--pink),var(--rose))}
+.btn.sm{padding:4px 10px;font-size:15px}
+.dgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-top:10px}
+.dgrid.head{margin-top:8px}
+.dwd{text-align:center;font-size:11px;font-weight:700;color:var(--muted);padding:2px 0}
+.dcell{min-height:58px;background:#fff;border:1px solid var(--line2);border-radius:10px;padding:4px;display:flex;flex-direction:column;gap:3px;overflow:hidden}
+.dcell.off{opacity:.38}
+.dcell.today{border-color:var(--pink);box-shadow:0 0 0 1px var(--pink) inset}
+.dnum{font-size:11px;font-weight:700;color:var(--muted)}
+.dchip{font-size:10px;font-weight:700;color:#fff;border-radius:5px;padding:2px 5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
 
 /* ---- cards ---- */
 .card{background:var(--card);backdrop-filter:blur(8px);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);padding:18px;position:relative;overflow:hidden}
@@ -262,12 +279,13 @@ a:hover{text-decoration:underline}
 <div class="topbar hid" id="topbar">
   <div class="brand">
     <img class="sun" id="barSun" alt="UTS">
-    <div class="t"><b>AW x UTS</b><span>Under The Sun Studios</span></div>
+    <div class="t"><b id="barName">AW x UTS</b><span>Under The Sun Studios</span></div>
   </div>
   <div class="sp"></div>
   <div class="client-chip" id="clientChip" onclick="go('settings')"><span class="dot"></span><span id="clientChipName">Client</span></div>
   <button class="icon-btn" onclick="go('settings')" title="Settings">⚙️</button>
 </div>
+<div class="clientbar hid" id="clientBar"></div>
 
 <div class="wrap hid" id="app">
   <!-- TABS -->
@@ -279,6 +297,9 @@ a:hover{text-decoration:underline}
     <button class="tab" data-t="deliver" onclick="go('deliver')"><span>📦 Deliverables</span><span class="n" id="n-deliver">0</span></button>
     <button class="tab" data-t="settings" onclick="go('settings')"><span>⚙️ Settings</span></button>
   </div>
+
+  <!-- DASHBOARD (owner) -->
+  <div class="panel" id="p-dashboard"><div id="dashBody"></div></div>
 
   <!-- IDEAS -->
   <div class="panel active" id="p-ideas">
@@ -365,6 +386,7 @@ a:hover{text-decoration:underline}
             <div class="field"><label>Client name</label><input id="sClientName" placeholder="Alicia Waldner"></div>
             <div class="field"><label>Client email</label><input id="sClientEmail" type="email" placeholder="alicia@example.com"></div>
           </div>
+          <div class="field"><label>Client color theme</label><input id="sColor" type="color" value="#ec4899" style="width:120px;height:44px;border-radius:12px;border:1px solid var(--line2);padding:4px;background:#fff"></div>
           <div class="row">
             <div class="field"><label>Studio name</label><input id="sStudioName" placeholder="Under The Sun Studios"></div>
             <div class="field"><label>Your email</label><input id="sStudioEmail" type="email" placeholder="cody@utsmedia.agency"></div>
@@ -458,6 +480,100 @@ function allDelivs(){const out=[];state.projects.forEach(p=>(p.videos||[]).forEa
 function findDeliv(vid){for(const p of state.projects){const v=(p.videos||[]).find(x=>x.id===vid);if(v)return{p,v};}return null;}
 function normDeliv(){state.projects.forEach(p=>(p.videos||[]).forEach(v=>{if(v.frame===undefined)v.frame='';if(v.dropbox===undefined)v.dropbox='';if(!v.frame&&v.dropbox)v.frame=v.dropbox;if(v.post===undefined)v.post='ready';if(v.archived===undefined)v.archived=false;}));}
 function toggleProj(pid){projExpand.has(pid)?projExpand.delete(pid):projExpand.add(pid);renderProjects();}
+
+/* ================= MULTI-CLIENT ENGINE ================= */
+const OWNER_EMAIL='cody@utsmedia.agency';
+let role='owner', activeClient=null;
+let MULTI={roster:[],data:{}};
+let dashMonthOffset=0;function dashNav(n){dashMonthOffset+=n;renderDashboard();}
+function shade(hex,pct){hex=hex||'#ec4899';const n=parseInt(hex.slice(1),16);let r=(n>>16)&255,g=(n>>8)&255,b=n&255;const t=pct<0?0:255,p=Math.abs(pct);r=Math.round((t-r)*p+r);g=Math.round((t-g)*p+g);b=Math.round((t-b)*p+b);return '#'+(1<<24|r<<16|g<<8|b).toString(16).slice(1);}
+function applyTheme(color){color=color||'#ec4899';const r=document.documentElement.style;
+  r.setProperty('--pink',color);r.setProperty('--pink-deep',shade(color,-0.18));r.setProperty('--rose',shade(color,0.22));
+  r.setProperty('--champ',shade(color,0.74));r.setProperty('--line',shade(color,0.82));r.setProperty('--line2',shade(color,0.70));
+  r.setProperty('--glow',shade(color,0.76));r.setProperty('--bg',shade(color,0.94));r.setProperty('--bg2',shade(color,0.90));
+  const m=document.querySelector('meta[name=theme-color]');if(m)m.setAttribute('content',color);}
+function clientMeta(id){return MULTI.roster.find(c=>c.id===id);}
+function activeColor(){const m=clientMeta(activeClient);return m?m.color:'#ec4899';}
+function renderClientBar(){const bar=document.getElementById('clientBar');if(!bar)return;
+  if(!DEMO||role!=='owner'){bar.classList.add('hid');return;}
+  bar.classList.remove('hid');bar.style.display='flex';
+  let h=`<button class="ctab ${activeClient==='dashboard'?'active':''}" onclick="setActiveClient('dashboard')">🧠 Studio Brain</button>`;
+  MULTI.roster.forEach(c=>{h+=`<button class="ctab ${activeClient===c.id?'active':''}" onclick="setActiveClient('${c.id}')"><span class="cdot" style="background:${c.color}"></span>${esc(c.name)}</button>`;});
+  h+=`<button class="ctab add" onclick="openAddClient()">+ Add</button>`;
+  bar.innerHTML=h;}
+function setActiveClient(id){
+  const tabs=document.getElementById('tabs'),bnav=document.getElementById('bnav'),dash=document.getElementById('p-dashboard');
+  if(id==='dashboard'){activeClient='dashboard';applyTheme('#eab308');
+    document.getElementById('barName').textContent='Studio Brain';
+    document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+    if(dash)dash.classList.add('active');
+    if(tabs)tabs.style.display='none';if(bnav)bnav.style.display='none';
+    renderClientBar();renderDashboard();window.scrollTo({top:0});return;}
+  activeClient=id;state=MULTI.data[id];const m=clientMeta(id);
+  applyTheme(m?m.color:'#ec4899');
+  document.getElementById('barName').textContent=m?m.name:'Client';
+  if(tabs)tabs.style.display='';if(bnav)bnav.style.display='';
+  renderClientBar();fillSettings();go(curTab&&curTab!=='dashboard'?curTab:'ideas');renderAll();}
+function openAddClient(){
+  modal('+ Add Client',`
+    <div class="field"><label>Client name</label><input id="f-cname" placeholder="e.g. Harrison Hyde"></div>
+    <div class="field"><label>Client login email</label><input id="f-cemail" type="email" placeholder="client@email.com"></div>
+    <div class="field"><label>Color theme</label><input id="f-ccolor" type="color" value="#6366f1" style="width:100%;height:48px;border-radius:12px;border:1px solid var(--line2);padding:4px;background:#fff"></div>
+    <p class="sub">They'll log in with this email and see only their own board, in this color.</p>
+  `,[{t:'Cancel',cls:'',fn:closeModal},{t:'Add Client',cls:'primary',fn:()=>{
+    const name=val('f-cname');if(!name){toast('Name needed','bad');return;}
+    const id=uid4();const color=document.getElementById('f-ccolor').value;
+    const cemail=val('f-cemail');
+    MULTI.roster.push({id,name,color,email:cemail});
+    MULTI.data[id]={settings:{clientName:name,clientEmail:cemail,studioName:'Under The Sun Studios',studioEmail:'cody@utsmedia.agency',relay:'',color},ideas:[],projects:[],reviews:[],deliverables:[],calEntries:[]};
+    if(DEMO){save('roster');}
+    else if(LIVE){const payload={clientEmail:cemail,clientName:name,color};KEYS.forEach(k=>{payload[k]=JSON.stringify(MULTI.data[id][k]);payload['_ts_'+k]=Date.now();});db.collection('crm').doc(id).set(payload,{merge:true}).then(()=>subscribeDoc(id)).catch(e=>{console.warn(e);toast('Could not save client','bad');});}
+    closeModal();setActiveClient(id);toast('Client added','good');}}]);}
+function renderDashboard(){
+  const el=document.getElementById('dashBody');if(!el)return;
+  const base=new Date();base.setHours(0,0,0,0);const todayStr=base.toISOString().slice(0,10);
+  const weekEnd=new Date(base);weekEnd.setDate(base.getDate()+7);const ym=new Date().toISOString().slice(0,7);
+  let pipeline=0,deliveredMo=0;const dueToday=[],dueWeek=[],active=[],byDate={};
+  MULTI.roster.forEach(c=>{const d=MULTI.data[c.id];if(!d)return;
+    (d.projects||[]).forEach(p=>{const vids=p.videos||[];const done=vids.length>0&&vids.every(v=>v.stage>=3);
+      if(!done){pipeline+=(p.price||0);active.push({c,p});}
+      if(p.date){(byDate[p.date]=byDate[p.date]||[]).push({c,p});}
+      if(p.date===todayStr)dueToday.push({c,p});
+      else if(p.date>todayStr){const pd=new Date(p.date+'T12:00');if(pd<=weekEnd)dueWeek.push({c,p});}
+      vids.forEach(v=>{if(v.stage>=3&&v.deliveredAt&&new Date(v.deliveredAt).toISOString().slice(0,7)===ym)deliveredMo++;});
+    });});
+  const row=(x)=>`<div class="item" style="padding:12px 14px;cursor:pointer" onclick="setActiveClient('${x.c.id}')"><div class="ih"><div class="sp"><div class="title" style="font-size:14px">${esc(x.p.title)}</div><div class="meta"><span class="cdot" style="background:${x.c.color}"></span><span>${esc(x.c.name)}</span><span>📅 ${fmtDate(x.p.date)}</span>${x.p.price?`<span class="price">${money(x.p.price)}</span>`:''}</div></div></div></div>`;
+  el.innerHTML=`
+    <div class="tiles">
+      <div class="tile"><div class="k">Delivered this month</div><div class="v pink">${deliveredMo}</div></div>
+      <div class="tile"><div class="k">Due today</div><div class="v">${dueToday.length}</div></div>
+      <div class="tile"><div class="k">Due this week</div><div class="v">${dueWeek.length}</div></div>
+      <div class="tile"><div class="k">In pipeline</div><div class="v pink">${money(pipeline)}</div></div>
+    </div>
+    ${(()=>{const prow=(x)=>{const v=x.p.videos||[];const pc=v.length?Math.round(v.reduce((a,b)=>a+Math.min(b.stage||0,3),0)/(v.length*3)*100):0;return `<div class="item" style="padding:12px 14px;cursor:pointer" onclick="setActiveClient('${x.c.id}')"><div class="ih"><div class="sp"><div class="title" style="font-size:14px">${esc(x.p.title)}</div><div class="meta"><span class="cdot" style="background:${x.c.color}"></span><span>${esc(x.c.name)}</span>${x.p.date?`<span>📅 ${fmtDate(x.p.date)}</span>`:''}${x.p.price?`<span class="price">${money(x.p.price)}</span>`:''}</div></div><div style="font-weight:800;color:var(--pink-deep)">${pc}%</div></div><div class="dbar"><span style="width:${pc}%"></span></div></div>`;};active.sort((a,b)=>(a.p.date||'~').localeCompare(b.p.date||'~'));return `<div class="card"><h2><span class="emo">🎬</span> Active projects — all clients</h2><div style="margin-top:12px">${active.length?active.map(prow).join(''):emptyBox('✅','No active projects right now.')}</div></div>`;})()}
+    ${(()=>{const ymd=(dt)=>dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');const cb=new Date();cb.setDate(1);cb.setMonth(cb.getMonth()+dashMonthOffset);const y=cb.getFullYear(),mo=cb.getMonth();const first=new Date(y,mo,1);const start=new Date(first);start.setDate(1-first.getDay());const monthName=cb.toLocaleString('en-US',{month:'long',year:'numeric'});let cells='';for(let i=0;i<42;i++){const dt=new Date(start);dt.setDate(start.getDate()+i);const ds=ymd(dt);const inMo=dt.getMonth()===mo;const items=byDate[ds]||[];cells+=`<div class="dcell${inMo?'':' off'}${ds===todayStr?' today':''}"><div class="dnum">${dt.getDate()}</div>${items.map(x=>`<div class="dchip" style="background:${x.c.color}" title="${esc(x.c.name)}: ${esc(x.p.title)}" onclick="event.stopPropagation();setActiveClient('${x.c.id}')">${esc(x.p.title)}</div>`).join('')}</div>`;}const wd=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d=>`<div class="dwd">${d}</div>`).join('');return `<div class="card" style="margin-top:16px"><div style="display:flex;align-items:center;justify-content:space-between"><h2><span class="emo">📅</span> All shoots — every client</h2><div style="display:flex;gap:8px;align-items:center"><button class="btn sm" onclick="dashNav(-1)">‹</button><b style="font-size:13px;min-width:120px;text-align:center">${monthName}</b><button class="btn sm" onclick="dashNav(1)">›</button></div></div><div class="dgrid head">${wd}</div><div class="dgrid">${cells}</div></div>`;})()}
+    <div class="card" style="margin-top:16px"><h2><span class="emo">🔥</span> Due today</h2><div style="margin-top:12px">${dueToday.length?dueToday.map(row).join(''):emptyBox('✅','Nothing due today.')}</div></div>
+    <div class="card" style="margin-top:16px"><h2><span class="emo">📆</span> Due this week</h2><div style="margin-top:12px">${dueWeek.length?dueWeek.map(row).join(''):emptyBox('🗓','Nothing else this week.')}</div></div>
+    <div class="card" style="margin-top:16px"><h2><span class="emo">👥</span> Clients</h2><div class="tiles" style="margin-top:12px">${MULTI.roster.map(c=>{const d=MULTI.data[c.id]||{};const ap=(d.projects||[]).filter(p=>{const v=p.videos||[];return !(v.length>0&&v.every(x=>x.stage>=3));}).length;return `<div class="tile" style="cursor:pointer" onclick="setActiveClient('${c.id}')"><div class="k"><span class="cdot" style="background:${c.color}"></span> ${esc(c.name)}</div><div class="v" style="font-size:18px">${ap} active</div></div>`;}).join('')}</div></div>`;
+}
+function dCli(name,email,color){return {settings:{clientName:name,clientEmail:email,studioName:'Under The Sun Studios',studioEmail:'cody@utsmedia.agency',relay:'',color},ideas:[],projects:[],reviews:[],deliverables:[],calEntries:[]};}
+function seedMulti(){
+  const al=dCli('Alicia Waldner','aw@aliciawaldner.com','#ec4899');
+  al.ideas=[{id:uid4(),title:'Brand story film',notes:'60-90s cinematic hero piece on who Alicia is and who she serves.',links:['https://instagram.com/reel/example'],supplies:[{name:'lav mic',got:false},{name:'key light',got:false}],createdAt:Date.now(),converted:false},
+    {id:uid4(),title:'Monthly reel batch',notes:'Batch 6 short-form reels in one shoot day.',links:[],supplies:[],createdAt:Date.now()-8e6,converted:false}];
+  const d=new Date();d.setDate(d.getDate()+5);
+  al.projects=[{id:uid4(),title:'Brand Content Day (6 reels)',price:3000,date:d.toISOString().slice(0,10),time:'10:00',dur:8,notes:'Full shoot day.',stage:2,videos:[
+    {id:uid4(),name:'Brand story cut',kind:'video',stage:3,frame:'https://dropbox.com/example',deliveredAt:Date.now()-3*864e5},
+    {id:uid4(),name:'Reel 1',kind:'video',stage:2,frame:'https://f.io/example',sentAt:Date.now()-2e6},
+    {id:uid4(),name:'Headshot set',kind:'photos',stage:2},
+    {id:uid4(),name:'Reel 2',kind:'video',stage:1},
+    {id:uid4(),name:'Reel 3',kind:'video',stage:0}],supplies:[{name:'2 cameras',got:false},{name:'backdrop',got:false}],links:[],createdAt:Date.now()}];
+  const h=dCli('Sample Client','client@email.com','#0ea5a4');
+  const h1=new Date();h1.setDate(h1.getDate()+1);
+  h.ideas=[{id:uid4(),title:'Monthly content shoot',notes:'Example second client so you can see tab switching.',links:[],supplies:[],createdAt:Date.now(),converted:false}];
+  h.projects=[{id:uid4(),title:'Content day',price:1200,date:h1.toISOString().slice(0,10),time:'09:00',dur:4,notes:'',stage:1,videos:[{id:uid4(),name:'Promo reel',kind:'video',stage:1}],supplies:[],links:[],createdAt:Date.now()}];
+  return {__v:DEMO_SEED,roster:[{id:'alicia',name:'Alicia Waldner',color:'#ec4899',email:'aw@aliciawaldner.com'},{id:'sample',name:'Sample Client',color:'#0ea5a4',email:'client@email.com'}],data:{alicia:al,sample:h}};
+}
 let LIVE=false, db=null, auth=null, uid=null, DEMO=false;
 let applyingSnap=false;
 const WORKSPACE='workspace';
@@ -470,6 +586,10 @@ let cal = new Date(); cal.setDate(1);
 let showArchive=false;
 const uid4=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 const KEYS=['settings','ideas','projects','reviews','deliverables','calEntries'];
+let tsByClient={};
+function blankClient(){return {settings:{clientName:"",clientEmail:"",studioName:"Under The Sun Studios",studioEmail:"",relay:"",color:""},ideas:[],projects:[],reviews:[],deliverables:[],calEntries:[]};}
+function saveMeta(id){ if(!LIVE||!db||!id||id==='dashboard')return; const m=clientMeta(id); if(!m)return; db.collection('crm').doc(id).set({clientEmail:m.email||'',clientName:m.name||'',color:m.color||'#ec4899'},{merge:true}).catch(e=>console.warn('meta',e)); }
+function subscribeDoc(id){ if(!db||!id)return; db.collection('crm').doc(id).onSnapshot(doc=>applySnapshot(doc.data(),id),e=>console.warn('snap',e)); }
 
 /* ---------- toast ---------- */
 let toastT;
@@ -478,14 +598,12 @@ function toast(msg,kind){const t=document.getElementById('toast');t.textContent=
 /* ---------- persistence ---------- */
 function lsKey(k){return 'utscrm_'+(uid||'demo')+'_'+k;}
 function save(key){
-  state[key]=state[key];
+  if(DEMO){ try{localStorage.setItem('utscrm_demo_multi',JSON.stringify(MULTI));}catch(e){} return; }
+  if(applyingSnap)return;
+  const id=activeClient; if(!id||id==='dashboard')return;
   const payload=JSON.stringify(state[key]);
-  const now=Date.now(); ts[key]=now;
-  try{localStorage.setItem(lsKey(key),payload);localStorage.setItem(lsKey('_ts_'+key),now);}catch(e){}
-  if(LIVE && !applyingSnap){
-    db.collection('crm').doc(WORKSPACE).set({[key]:payload,['_ts_'+key]:now},{merge:true})
-      .catch(e=>console.warn('sync write',e));
-  }
+  const now=Date.now(); (tsByClient[id]=tsByClient[id]||{})[key]=now;
+  if(LIVE){ db.collection('crm').doc(id).set({[key]:payload,['_ts_'+key]:now},{merge:true}).catch(e=>console.warn('sync write',e)); }
 }
 function loadLocal(){
   KEYS.forEach(k=>{
@@ -493,21 +611,24 @@ function loadLocal(){
       if(v!==null){state[k]=JSON.parse(v);ts[k]=t;}}catch(e){}
   });
 }
-function applySnapshot(data){
-  if(!data)return;
+function applySnapshot(data,id){
+  if(!data||!id)return;
+  if(!MULTI.data[id])MULTI.data[id]=blankClient();
+  const d=MULTI.data[id];const tmap=tsByClient[id]=tsByClient[id]||{};
   applyingSnap=true;let changed=false;
   KEYS.forEach(k=>{
     const t=data['_ts_'+k]||0;
-    if(data[k]!==undefined && t>=(ts[k]||0)){
+    if(data[k]!==undefined && t>=(tmap[k]||0)){
       try{const parsed=JSON.parse(data[k]);
-        if(JSON.stringify(parsed)!==JSON.stringify(state[k])){state[k]=parsed;ts[k]=t;
-          try{localStorage.setItem(lsKey(k),data[k]);localStorage.setItem(lsKey('_ts_'+k),t);}catch(e){}
-          changed=true;}
+        if(JSON.stringify(parsed)!==JSON.stringify(d[k])){d[k]=parsed;tmap[k]=t;changed=true;}
       }catch(e){}
     }
   });
+  const m=clientMeta(id);
+  if(m){ if(data.clientName)m.name=data.clientName; if(data.color)m.color=data.color; if(data.clientEmail)m.email=data.clientEmail; }
   applyingSnap=false;
-  if(changed) renderAll();
+  if(changed){ if(id===activeClient){ state=MULTI.data[id]; if(booted)renderAll(); } if(activeClient==='dashboard'&&booted)renderDashboard(); }
+  if(booted)renderClientBar();
 }
 
 /* =========================================================
@@ -538,29 +659,48 @@ function doLogin(){
     }else{msg.style.color='var(--bad)';msg.textContent=err.message;}
   });
 }
-const DEMO_SEED='alicia-5';
+const DEMO_SEED='multi-2';
 function enterDemo(){
-  DEMO=true;LIVE=false;uid='demo';
-  loadLocal();
-  let sv='';try{sv=localStorage.getItem('utscrm_demo_seed')||'';}catch(e){}
-  if(sv!==DEMO_SEED || (!state.ideas.length && !state.projects.length && !state.deliverables.length)){
-    seedDemo();
-    try{localStorage.setItem('utscrm_demo_seed',DEMO_SEED);}catch(e){}
-  }
+  DEMO=true;LIVE=false;uid='demo';role='owner';
+  let saved=null;try{saved=JSON.parse(localStorage.getItem('utscrm_demo_multi'));}catch(e){}
+  if(saved&&saved.__v===DEMO_SEED&&saved.roster&&saved.roster.length){MULTI=saved;}
+  else{MULTI=seedMulti();try{localStorage.setItem('utscrm_demo_multi',JSON.stringify(MULTI));}catch(e){}}
+  activeClient=MULTI.roster[0].id;state=MULTI.data[activeClient];
   bootApp();
-  toast('Demo mode - saved on this device only');
+  toast('Demo - owner view');
 }
 function signOut(){
   if(LIVE&&auth){auth.signOut();}
   location.reload();
 }
+async function liveOwnerBoot(email){
+  role='owner';MULTI={roster:[],data:{}};tsByClient={};
+  let snap=null;try{snap=await db.collection('crm').get();}catch(e){console.warn('owner load',e);}
+  (snap?snap.docs:[]).forEach(doc=>{ if(doc.id==='_index')return; const d=doc.data()||{}; const data=blankClient(); KEYS.forEach(k=>{try{if(d[k]!==undefined)data[k]=JSON.parse(d[k]);}catch(e){}}); MULTI.data[doc.id]=data; tsByClient[doc.id]={};KEYS.forEach(k=>tsByClient[doc.id][k]=d['_ts_'+k]||0); MULTI.roster.push({id:doc.id,name:d.clientName||data.settings.clientName||'Client',color:d.color||data.settings.color||'#ec4899',email:d.clientEmail||data.settings.clientEmail||''}); });
+  let ws=MULTI.roster.find(r=>r.id===WORKSPACE);
+  if(ws){ if(!ws.email)ws.email='aw@aliciawaldner.com'; if(!ws.name||ws.name==='Client')ws.name='Alicia Waldner'; if(!ws.color)ws.color='#ec4899'; }
+  if(MULTI.roster.length===0){ MULTI.data[WORKSPACE]=blankClient();MULTI.data[WORKSPACE].settings.clientName='Alicia Waldner';MULTI.data[WORKSPACE].settings.clientEmail='aw@aliciawaldner.com';MULTI.roster.push({id:WORKSPACE,name:'Alicia Waldner',color:'#ec4899',email:'aw@aliciawaldner.com'}); }
+  MULTI.roster.forEach(r=>{saveMeta(r.id);subscribeDoc(r.id);});
+  state=MULTI.data[MULTI.roster[0].id];activeClient='dashboard';
+  bootApp();
+}
+async function liveClientBoot(email){
+  role='client';MULTI={roster:[],data:{}};tsByClient={};
+  let id=null,d=null;
+  try{const q=await db.collection('crm').where('clientEmail','==',email).get(); if(!q.empty){id=q.docs[0].id;d=q.docs[0].data();}}catch(e){console.warn('client q',e);}
+  if(!id){ try{const doc=await db.collection('crm').doc(WORKSPACE).get(); if(doc.exists){id=WORKSPACE;d=doc.data();}}catch(e){} }
+  if(!id){ MULTI.roster=[{id:'none',name:'',color:'#ec4899',email}];MULTI.data['none']=blankClient();activeClient='none';state=MULTI.data['none'];bootApp();toast('No workspace for this account yet','bad');return; }
+  const data=blankClient();KEYS.forEach(k=>{try{if(d[k]!==undefined)data[k]=JSON.parse(d[k]);}catch(e){}});
+  MULTI.data[id]=data;tsByClient[id]={};KEYS.forEach(k=>tsByClient[id][k]=d['_ts_'+k]||0);
+  MULTI.roster.push({id,name:d.clientName||data.settings.clientName||'',color:d.color||data.settings.color||'#ec4899',email});
+  subscribeDoc(id);activeClient=id;state=MULTI.data[id];
+  bootApp();
+}
 if(hasFB){
   auth.onAuthStateChanged(u=>{
-    if(u){
-      uid=u.uid;LIVE=true;DEMO=false;
-      loadLocal();
-      db.collection('crm').doc(WORKSPACE).onSnapshot(doc=>{applySnapshot(doc.data());},e=>console.warn('snap',e));
-      bootApp();
+    if(u){ LIVE=true;DEMO=false;uid=u.uid;
+      const email=(u.email||'').toLowerCase();
+      if(email===OWNER_EMAIL) liveOwnerBoot(email); else liveClientBoot(email);
     }
   });
 }
@@ -575,9 +715,9 @@ function bootApp(){
   document.getElementById('app').classList.remove('hid');
   document.getElementById('bnav').classList.remove('hid');
   booted=true;
-  fillSettings();
-  renderAll();
   updateSync();
+  if(activeClient){ setActiveClient(activeClient); }
+  else { applyTheme('#ec4899'); fillSettings(); renderAll(); }
 }
 let curTab='ideas';
 function go(t){
@@ -790,7 +930,7 @@ function addPhotos(pid){const p=state.projects.find(p=>p.id===pid);const v=val('
 function setVideoStage(pid,vid,stage){const p=state.projects.find(p=>p.id===pid);const v=(p.videos||[]).find(x=>x.id===vid);if(!v)return;v.stage=+stage;save('projects');renderProjects();}
 function rmVideo(pid,vid){const p=state.projects.find(p=>p.id===pid);p.videos=(p.videos||[]).filter(x=>x.id!==vid);save('projects');renderProjects();}
 function toggleGrab(pid){projGrabOpen.has(pid)?projGrabOpen.delete(pid):projGrabOpen.add(pid);renderProjects();}
-function setDelivStage(vid,stage){const r=findDeliv(vid);if(!r)return;r.v.stage=+stage;if(r.v.stage!==2)r.v.sentAt=null;save('projects');renderAll();}
+function setDelivStage(vid,stage){const r=findDeliv(vid);if(!r)return;r.v.stage=+stage;if(r.v.stage!==2)r.v.sentAt=null;if(r.v.stage>=3&&!r.v.deliveredAt)r.v.deliveredAt=Date.now();save('projects');renderAll();}
 function saveDelivFrame(vid,pre){const r=findDeliv(vid);if(!r)return;const e=document.getElementById(pre+'-'+vid);r.v.frame=e?e.value.trim():r.v.frame;reviewEditing.delete(vid);save('projects');toast('Link saved');renderAll();}
 function openProject(id){
   const p=id?state.projects.find(x=>x.id===id):null;
@@ -862,7 +1002,7 @@ function sendReview(vid){
   }
 }
 function reviewRevisions(vid){const r=findDeliv(vid);if(!r)return;r.v.stage=1;r.v.sentAt=null;save('projects');renderAll();toast('Sent back to editing');}
-function reviewApprove(vid){const r=findDeliv(vid);if(!r)return;r.v.stage=3;save('projects');go('deliver');renderAll();toast('Delivered','good');}
+function reviewApprove(vid){const r=findDeliv(vid);if(!r)return;r.v.stage=3;if(!r.v.deliveredAt)r.v.deliveredAt=Date.now();save('projects');go('deliver');renderAll();toast('Delivered','good');}
 
 /* ----- DELIVERABLES ----- */
 function renderDeliver(){
@@ -1002,13 +1142,16 @@ function fillSettings(){
   document.getElementById('sStudioName').value=s.studioName||'Under The Sun Studios';
   document.getElementById('sStudioEmail').value=s.studioEmail||'';
   document.getElementById('sRelay').value=s.relay||DEFAULT_RELAY||'';
+  const sc=document.getElementById('sColor');if(sc)sc.value=s.color||activeColor()||'#ec4899';
 }
 function saveSettings(){
+  const col=document.getElementById('sColor')?document.getElementById('sColor').value:(state.settings.color||activeColor());
   state.settings={
     clientName:val('sClientName'),clientEmail:val('sClientEmail'),
     studioName:val('sStudioName')||'Under The Sun Studios',studioEmail:val('sStudioEmail'),
-    relay:val('sRelay').trim()
+    relay:val('sRelay').trim(),color:col
   };
+  if(activeClient&&activeClient!=='dashboard'){const m=clientMeta(activeClient);if(m){m.name=state.settings.clientName||m.name;m.email=state.settings.clientEmail;m.color=col;}applyTheme(col);renderClientBar();const bn=document.getElementById('barName');if(bn)bn.textContent=(m?m.name:'');if(LIVE)saveMeta(activeClient);}
   save('settings');renderAll();toast('Settings saved','good');
 }
 function updateSync(){
